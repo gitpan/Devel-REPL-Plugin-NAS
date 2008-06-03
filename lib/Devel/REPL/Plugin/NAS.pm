@@ -1,8 +1,8 @@
 package Devel::REPL::Plugin::NAS;
 use Devel::REPL::Plugin;
 
-our $VERSION = 0.0501;
-# $Id: NAS.pm 200 2008-06-02 01:30:02Z oliver $
+our $VERSION = 0.0601;
+# $Id: NAS.pm 206 2008-06-03 17:23:13Z oliver $
 
 use namespace::clean except => ['meta'];
 
@@ -45,10 +45,10 @@ sub BEFORE_PLUGIN {
     for my $plugin (qw(
         LexEnv
         Turtles
-        History
         FancyPrompt
         OutputCache
         MultiLine::PPI
+        Completion
     )) {
         $self->load_plugin($plugin);
     }
@@ -76,7 +76,8 @@ sub AFTER_PLUGIN {
         /x
     );
 
-    $self->formatted_eval('use Net::Appliance::Session');
+    $self->formatted_eval('use Net::Appliance::Session 1.23');
+    $self->formatted_eval('use File::Slurp'); # very useful for NAS
     $self->fancy_prompt(\&nas_prompt);
     $self->fancy_continuation_prompt(\&nas_continuation_prompt);
 }
@@ -121,7 +122,7 @@ sub munge_qc {
     my $quotes = $doc->find('Token::Quote::Interpolate') || [];
     foreach my $tok ( @$quotes ) {
         next if $tok !~ m/^qc(.)(.*)(.)/s; # weak, FIXME
-        $tok->{content} = qq# \$s->cmd(" $2 ") #;
+        $tok->{content} = qq# \$s->cmd("$2") #;
     }
 
     return $doc->serialize;
@@ -131,6 +132,15 @@ sub munge_qc {
 around 'mangle_line' => sub {
     my ( $orig, $self, $code ) = @_;
     return $self->$orig( $self->munge_qc($code) );
+};
+
+# stop the interpolated list print indenting problem
+around 'print' => sub {
+    my ( $orig, $self, @args ) = @_;
+    {
+        local $" = '';
+        return $self->$orig( @args );
+    }
 };
 
 # TURTLE COMMAND for calling perl from NAS CLI mode
@@ -224,7 +234,7 @@ sub nas_run_command {
     $telnet->{inputlog} = $log;
 
     #$s->input_log( *STDOUT );
-    my @output = $self->eval(qq# \$s->cmd(" $code ") #);
+    my @output = $self->eval(qq# \$s->cmd("$code") #);
     $telnet->{inputlog} = $saved_log;
     close $log;
 
@@ -293,6 +303,22 @@ sub get_nas_session {
     return $s;
 }
 
+# command completion - only works when in NAS CLI mode
+# requires updated version of N::A::S
+around '_completion' => sub {
+    my ( $orig, $self, $text, $line, $start, $end ) = @_;
+
+    return $self->$orig($text, $line, $start, $end)
+        if ! $self->nas_cli_mode;
+
+    substr($line, $end) = '';
+    my @output = $self->nas_run_command($line .'?');
+    pop @output;
+    $self->print("\n", @output);
+    $self->term->reset_line_state;
+    $self->$orig($text, $line, $start, $end);
+};
+
 # after running main loop, cleanly disconnect
 after 'run' => sub {
     my $self = shift;
@@ -348,7 +374,7 @@ Devel::REPL::Plugin::NAS - Add Perl to your network devices' command line interf
 
 =head1 VERSION
 
-This document refers to version 0.0501 of Devel::REPL::Plugin::NAS
+This document refers to version 0.0601 of Devel::REPL::Plugin::NAS
 
 =head1 WARNING
 
@@ -374,7 +400,29 @@ device manufacturer embedded Perl in their device's CLI. That's pretty cool.
  my $repl = Devel::REPL->new;
  $repl->load_plugin('NAS');
  $repl->run;
+
+Or,
+
+ $> /usr/bin/nsh hostname.example.com
+ Username [oliver]:
+ Password: 
+ Net::Appliance::Session=GLOB(0x8e7db7c)
  
+ TEST_3750# dir flash:
+ Directory of flash:/
+ 
+     4  -rwx        7874  May 22 2008 11:43:53 +01:00  config.text
+   459  drwx         192  Jan 31 2007 15:53:38 +00:00  c3750-ipbasek9-mz.122-25.SEE2
+ 15998976 bytes total (6618624 bytes free)
+ 
+ TEST_3750# #nas_perl
+ Switched into Perl mode.
+ re.pl:003:0> write_file ('config.text', qc{more flash:config.text});
+ 1
+ re.pl:004:0> ^D
+ Closing Net::Appliance::Session connection.
+ $> 
+
 =head1 DESCRIPTION
 
 There is a module, L<Net::Appliance::Session> (NAS), which allows you to
@@ -478,6 +526,23 @@ To switch from NAS CLI mode to Perl mode:
  Switched into Perl mode.
  re.pl:011:0> print "Hello, world"
 
+=head2 The Quoted (interpolated) Command operator
+
+Let's say you want to run a command on your network device, and store the
+results of that in an array. So far we've only seen how to use I<either> Perl
+mode I<or> NAS CLI mode. The Quoted (interpolated) Command operator is a
+convenience feature to help you out in this situation.
+
+This operator is just like the other interpolated Perl quote-like operators
+such as C<qx{}> and C<qq{}>, except that it is C<qc{}> (for Quoted Command).
+The same rules apply for substituting the curly brace characters as do for the
+other Perl quote-like operators. Here is an example:
+
+ re.pl:015:0> my @output = qc{ show int status }
+
+I've found this to be one of the most useful features - being able to grab
+command output and munge it in Perl, whilst keeping the remote session open.
+
 =head2 One-off commands in an alternate mode
 
 If you're in NAS CLI mode, and you want to run a quick bit of Perl (remember,
@@ -498,20 +563,6 @@ adding a flag C<-noout> to the macro, like so:
 
  re.pl:013:0> #nas -noout show int status | incl 14
  re.pl:014:0>
-
-=head2 The Quoted (interpolated) Command operator
-
-Let's say you want to run a command on your network device, and store the
-results of that in an array. So far we've only seen how to use I<either> Perl
-mode I<or> NAS CLI mode. The Quoted (interpolated) Command operator is a
-convenience feature to help you out in this situation.
-
-This operator is just like the other Perl quote-like operators such as C<q{}>,
-C<qx{}>, and C<qq{}>, except that it is C<qc{}> (for Quoted Command). The same
-rules apply for substituting the curly brace characters as do for the other
-Perl quote-like operators, which is handy. Here is an example:
-
- re.pl:015:0> my @output = qc{ show int status }
 
 =head2 Command results cache
 
@@ -553,12 +604,16 @@ One handy thing to do if you're really stuck is drop to lower level testing:
  
  re.pl:019:0> 
 
+=head2 Additionally loaded modules
+
+Currently the L<File::Slurp> module is loaded by this plugin, if available. It
+provides the C<read_file> and C<write_file> functions which are extremely
+useful for dumping data from a network device (such as files on flash memory).
+For further details pleae see the manual page for that module.
+
 =head1 TODO
 
 =over 4
-
-=item Fix command output, as it suffers from the 'stringified list indent'
-issue.
 
 =item Currently no way to specify the C<Net::Appliance::Session> Transport
 when using the connect macro.
@@ -574,11 +629,18 @@ Other than the standard contents of the Perl distribution, you will need:
 
 =over 4
 
-=item L<Devel::REPL>
+=item *
 
-=item L<Net::Appliance::Session>
+L<Devel::REPL>
+
+=item *
+
+L<Net::Appliance::Session> >= 1.23
 
 =back
+
+To run the bundled C</usr/bin/nsh> program, you'll need the L<IO::Prompt>
+module.
 
 =head1 AUTHOR
 
