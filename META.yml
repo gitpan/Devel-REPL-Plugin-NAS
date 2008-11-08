@@ -1,12 +1,27 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Devel-REPL-Plugin-NAS
-version:      0.0602
-version_from: lib/Devel/REPL/Plugin/NAS.pm
-installdirs:  site
-requires:
-    Devel::REPL:                   0
-    Net::Appliance::Session:       1.23
-
+---
+abstract: 'Add Perl to your network devices'' command line interfaces'
+author:
+  - 'Oliver Gorwits C<< <oliver.gorwits@oucs.ox.ac.uk> >>'
+build_requires:
+  Test::More: 0
+  Test::Pod: 0
+  Test::Pod::Coverage: 0
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30_01
+generated_by: 'Module::Install version 0.77'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Devel-REPL-Plugin-NAS
+no_index:
+  directory:
+    - inc
+    - t
+    - examples
+requires:
+  Devel::REPL: 0
+  Net::Appliance::Session: 1.23
+  perl: 5.8.1
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.0701

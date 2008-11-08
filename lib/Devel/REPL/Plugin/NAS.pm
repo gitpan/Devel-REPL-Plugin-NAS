@@ -1,8 +1,14 @@
 package Devel::REPL::Plugin::NAS;
+
+use strict;
+use warnings FATAL => 'all';
+
 use Devel::REPL::Plugin;
 
-our $VERSION = 0.0602;
-# $Id: NAS.pm 208 2008-06-03 22:55:43Z oliver $
+our $VERSION = '0.0701';
+$VERSION = eval $VERSION; # numify for warning-free dev releases
+
+# $Id: NAS.pm 265 2008-11-08 16:22:09Z oliver $
 
 use namespace::clean except => ['meta'];
 
@@ -374,7 +380,7 @@ Devel::REPL::Plugin::NAS - Add Perl to your network devices' command line interf
 
 =head1 VERSION
 
-This document refers to version 0.0602 of Devel::REPL::Plugin::NAS
+This document refers to version 0.0701 of Devel::REPL::Plugin::NAS
 
 =head1 WARNING
 
@@ -652,19 +658,10 @@ All the helpful people in C<#moose> on IRC.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright (c) Oliver Gorwits 2008. All Rights Reserved.
+Copyright (c) Oliver Gorwits 2008.
 
-This program is free software; you can redistribute it and/or modify it under
-the terms of version 2 of the GNU General Public License as published by the
-Free Software Foundation.
-
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-St, Fifth Floor, Boston, MA 02110-1301 USA
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl itself.
 
 =cut
 
